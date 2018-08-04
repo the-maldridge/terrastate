@@ -33,7 +33,6 @@ func manageState(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case "GET":
-		log.Println("Dispensing State")
 		data, err := ioutil.ReadFile(*statePath)
 		if os.IsNotExist(err) {
 			fmt.Fprintf(w, "")
@@ -44,8 +43,8 @@ func manageState(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Write(data)
+		log.Println("State requested by", user)
 	case "POST":
-		log.Println("Updating State")
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -59,9 +58,8 @@ func manageState(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("An internal error has occured"))
 			return
 		}
-		log.Println("State Updated")
+		log.Println("State Updated by", user)
 	case "DELETE":
-		log.Println("Purging State")
 		err := os.Remove(*statePath)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -69,7 +67,7 @@ func manageState(w http.ResponseWriter, r *http.Request) {
 			log.Println("Error removing state: ", err)
 			return
 		}
-		log.Println("State purged")
+		log.Println("State purged by", user)
 	default:
 		log.Println("Unknown request verb")
 		w.WriteHeader(http.StatusBadRequest)
@@ -93,7 +91,7 @@ func manageLocks(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("An internal error has occured"))
-		log.Println("Error reading body: ", err)
+		log.Println("Error reading body:", err)
 		return
 	}
 	info := &state.LockInfo{}
@@ -101,7 +99,7 @@ func manageLocks(w http.ResponseWriter, r *http.Request) {
 	if err != nil && len(b) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("An internal error has occured"))
-		log.Println("Error parsing lock: ", err)
+		log.Println("Error parsing lock:", err)
 		log.Println(b)
 		return
 	}
@@ -113,7 +111,7 @@ func manageLocks(w http.ResponseWriter, r *http.Request) {
 		if err != nil && !os.IsNotExist(err) {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("An internal error has occured"))
-			log.Println("Error reading lock: ", err)
+			log.Println("Error reading lock:", err)
 			return
 		}
 		if os.IsNotExist(err) {
@@ -125,7 +123,7 @@ func manageLocks(w http.ResponseWriter, r *http.Request) {
 				log.Println("Error writing lock: ", err)
 				return
 			}
-			log.Println("Lock issued")
+			log.Println("Lock issued to", user)
 			fmt.Fprintf(w, "OK")
 			return
 		}
@@ -133,16 +131,17 @@ func manageLocks(w http.ResponseWriter, r *http.Request) {
 		// it out and send it back.
 		w.WriteHeader(http.StatusConflict)
 		w.Write(data)
+		log.Println("A lock was denied to", user)
 	case "UNLOCK":
 		err := os.Remove(lockpath)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("An internal error has occured"))
-			log.Println("Error clearing lock: ", err)
+			log.Println("Error clearing lock:", err)
 			return
 		}
 		fmt.Fprintf(w, "OK")
-		log.Println("Lock cleared")
+		log.Println("Lock cleared by", user)
 	}
 }
 
