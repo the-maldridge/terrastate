@@ -19,6 +19,9 @@ var (
 	authService auth.Service
 
 	statePath = flag.String("state_file", "./state.dat", "Location for the state file")
+
+	addr = flag.String("bind_addr", "localhost", "Address to bind to")
+	port = flag.Int("bind_port", 8081, "Port to bind to")
 )
 
 func manageState(w http.ResponseWriter, r *http.Request) {
@@ -161,5 +164,5 @@ func main() {
 
 	http.HandleFunc("/state", manageState)
 	http.HandleFunc("/locks", manageLocks)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *addr, *port), nil))
 }
