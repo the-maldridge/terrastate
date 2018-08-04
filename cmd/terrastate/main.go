@@ -9,14 +9,25 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/the-maldridge/TerraState/internal/auth"
+	_ "github.com/the-maldridge/TerraState/internal/auth/all"
+
 	"github.com/hashicorp/terraform/state"
 )
 
 var (
+	authService auth.Service
+
 	statePath = flag.String("state_file", "./state.dat", "Location for the state file")
 )
 
 func manageState(w http.ResponseWriter, r *http.Request) {
+	user, pass, ok := r.BasicAuth()
+	if !ok || authService.AuthUser(user, pass) != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("The provided user is unauthorized"))
+		return
+	}
 	switch r.Method {
 	case "GET":
 		log.Println("Dispensing State")
@@ -64,6 +75,12 @@ func manageState(w http.ResponseWriter, r *http.Request) {
 }
 
 func manageLocks(w http.ResponseWriter, r *http.Request) {
+	user, pass, ok := r.BasicAuth()
+	if !ok || authService.AuthUser(user, pass) != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("The provided user is unauthorized"))
+		return
+	}
 	if r.Method != "LOCK" && r.Method != "UNLOCK" {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("The only allowed methods are LOCK and UNLOCK"))
@@ -127,7 +144,21 @@ func manageLocks(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	flag.Parse()
+
 	log.Println("Starting Terrastate")
+
+	log.Println("The following authenticators are known")
+	for _, b := range auth.List() {
+		log.Printf("  %s", b)
+	}
+
+	var err error
+	authService, err = auth.New()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	http.HandleFunc("/state", manageState)
 	http.HandleFunc("/locks", manageLocks)
 	log.Fatal(http.ListenAndServe(":8080", nil))
