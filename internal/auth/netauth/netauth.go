@@ -23,7 +23,14 @@ func init() {
 // New obtains a new authentication service that uses the NetAuth
 // backend.
 func New() (auth.Service, error) {
+	viper.SetConfigName("config")
+	viper.AddConfigPath("/etc/netauth/")
+	viper.AddConfigPath("$HOME/.netauth")
+	viper.AddConfigPath(".")
 	viper.Set("client.ServiceName", "TerraState")
+	if err := viper.ReadInConfig(); err != nil {
+		log.Fatal("Fatal error reading configuration: ", err)
+	}
 
 	// Grab a client
 	c, err := client.New()
