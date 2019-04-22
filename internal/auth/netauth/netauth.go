@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 
+	"github.com/spf13/viper"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -22,14 +23,13 @@ func init() {
 // New obtains a new authentication service that uses the NetAuth
 // backend.
 func New() (auth.Service, error) {
+	viper.Set("client.ServiceName", "TerraState")
+
 	// Grab a client
-	c, err := client.New(nil)
+	c, err := client.New()
 	if err != nil {
 		return nil, err
 	}
-
-	// Set the service ID
-	c.SetServiceID("TerraState")
 
 	x := netAuthBackend{
 		nacl: c,
