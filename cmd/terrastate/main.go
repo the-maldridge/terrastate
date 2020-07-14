@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/the-maldridge/TerraState/internal/auth"
-	_ "github.com/the-maldridge/TerraState/internal/auth/all"
+	"github.com/the-maldridge/terrastate/internal/auth"
+	_ "github.com/the-maldridge/terrastate/internal/auth/all"
 
 	"github.com/hashicorp/terraform/state"
 )

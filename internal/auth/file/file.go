@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/the-maldridge/TerraState/internal/auth"
+	"github.com/the-maldridge/terrastate/internal/auth"
 )
 
 var (

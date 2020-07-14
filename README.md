@@ -1,7 +1,7 @@
-TerraState
+terrastate
 ==========
 
-TerraState is a simplified remote state daemon for HashiCorp
+terrastate is a simplified remote state daemon for HashiCorp
 Terraform.  This daemon implements a remote state storage engine, and
 a locking function.
 

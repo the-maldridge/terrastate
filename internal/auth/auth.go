@@ -10,7 +10,7 @@ var (
 )
 
 // Service contains the methods needed to authenticate a caller to
-// TerraState.
+// terrastate.
 type Service interface {
 	AuthUser(string, string) error
 }

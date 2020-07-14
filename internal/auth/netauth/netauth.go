@@ -9,11 +9,11 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/NetAuth/NetAuth/pkg/client"
-	"github.com/the-maldridge/TerraState/internal/auth"
+	"github.com/the-maldridge/terrastate/internal/auth"
 )
 
 var (
-	reqGroup = flag.String("required_group", "", "Required group for use of TerraState")
+	reqGroup = flag.String("required_group", "", "Required group for use of terrastate")
 )
 
 func init() {
@@ -27,7 +27,7 @@ func New() (auth.Service, error) {
 	viper.AddConfigPath("/etc/netauth/")
 	viper.AddConfigPath("$HOME/.netauth")
 	viper.AddConfigPath(".")
-	viper.Set("client.ServiceName", "TerraState")
+	viper.Set("client.ServiceName", "terrastate")
 	if err := viper.ReadInConfig(); err != nil {
 		log.Fatal("Fatal error reading configuration: ", err)
 	}

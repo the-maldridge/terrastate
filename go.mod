@@ -1,4 +1,4 @@
-module github.com/the-maldridge/TerraState
+module github.com/the-maldridge/terrastate
 
 go 1.12
 
