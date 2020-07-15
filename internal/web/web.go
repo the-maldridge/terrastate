@@ -3,6 +3,7 @@ package web
 import (
 	"io/ioutil"
 	"net/http"
+	"path"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/labstack/echo"
@@ -17,6 +18,8 @@ type Store interface {
 	Get([]byte) ([]byte, error)
 	Put([]byte, []byte) error
 	Del([]byte) error
+
+	Close() error
 }
 
 // Server is an abstraction over all methods needed to operate the
@@ -32,26 +35,33 @@ type Server struct {
 // New returns an initialized server, but not one that is prepared to
 // serve.  The embedded echo.Echo instance's Serve method must still
 // be called.
-func New(kv Store) (*Server, error) {
+func New(kv Store) *Server {
 	e := echo.New()
+	e.Logger.SetLevel(99)
 	x := new(Server)
 	x.Echo = e
 	x.store = kv
 
-	x.GET("/state/:id", x.getState)
-	x.POST("/state/:id", x.putState)
-	x.DELETE("/state/:id", x.delState)
+	x.GET("/state/:project/:id", x.getState)
+	x.POST("/state/:project/:id", x.putState)
+	x.DELETE("/state/:project/:id", x.delState)
 
-	return x, nil
+	return x
+}
+
+// SetLogger sets the logger for the top level of the web system.
+func (s *Server) SetLogger(l hclog.Logger) {
+	s.l = l
 }
 
 // getState fetches state for a given id and returns it to the caller.
 func (s *Server) getState(c echo.Context) error {
+	proj := c.Param("project")
 	id := c.Param("id")
 
-	state, err := s.store.Get([]byte(id))
+	state, err := s.store.Get([]byte(path.Join(proj, id)))
 	if err != nil {
-		s.l.Error("Error retrieving state", "id", id, "error", err)
+		s.l.Error("Error retrieving state", "project", proj, "id", id, "error", err)
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
@@ -59,16 +69,17 @@ func (s *Server) getState(c echo.Context) error {
 }
 
 func (s *Server) putState(c echo.Context) error {
+	proj := c.Param("project")
 	id := c.Param("id")
 
 	body, err := ioutil.ReadAll(c.Request().Body)
 	if err != nil {
-		s.l.Error("Error decoding request", "id", id, "error", err)
+		s.l.Error("Error decoding request", "project", proj, "id", id, "error", err)
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
-	if err := s.store.Put([]byte(id), body); err != nil {
-		s.l.Error("Error putting state", "id", id, "error", err)
+	if err := s.store.Put([]byte(path.Join(proj, id)), body); err != nil {
+		s.l.Error("Error putting state", "project", proj, "id", id, "error", err)
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
@@ -76,10 +87,11 @@ func (s *Server) putState(c echo.Context) error {
 }
 
 func (s *Server) delState(c echo.Context) error {
+	proj := c.Param("project")
 	id := c.Param("id")
 
-	if err := s.store.Del([]byte(id)); err != nil {
-		s.l.Error("Error purging state", "id", id, "error", err)
+	if err := s.store.Del([]byte(path.Join(proj, id))); err != nil {
+		s.l.Error("Error purging state", "project", proj, "id", id, "error", err)
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
