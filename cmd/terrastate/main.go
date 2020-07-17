@@ -10,7 +10,12 @@ import (
 
 	"github.com/the-maldridge/terrastate/internal/store"
 	_ "github.com/the-maldridge/terrastate/internal/store/bc"
+
 	"github.com/the-maldridge/terrastate/internal/web"
+	"github.com/the-maldridge/terrastate/internal/web/auth"
+
+	_ "github.com/the-maldridge/terrastate/internal/web/auth/file"
+	_ "github.com/the-maldridge/terrastate/internal/web/auth/netauth"
 )
 
 func main() {
@@ -26,18 +31,30 @@ func main() {
 	store.SetLogger(appLogger.Named("store"))
 	store.DoCallbacks()
 
+	auth.SetLogger(appLogger.Named("web").Named("auth"))
+	auth.DoCallbacks()
+
 	si := os.Getenv("TS_STORE")
 	if si == "" {
 		si = "bitcask"
 	}
-
 	s, err := store.Initialize(si)
 	if err != nil {
 		appLogger.Error("Could not initialize store", "error", err)
 		os.Exit(2)
 	}
 
-	w := web.New(s)
+	ai := os.Getenv("TS_AUTH")
+	if ai == "" {
+		ai = "file"
+	}
+	a, err := auth.Initialize(ai)
+	if err != nil {
+		appLogger.Error("Could not initialize auth", "error", err)
+		os.Exit(2)
+	}
+
+	w := web.New(s, a)
 	w.SetLogger(appLogger.Named("web"))
 
 	bind := os.Getenv("TS_BIND")

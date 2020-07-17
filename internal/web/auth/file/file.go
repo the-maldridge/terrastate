@@ -1,23 +1,36 @@
 package file
 
 import (
-	"flag"
+	"context"
 	"io/ioutil"
+	"os"
 	"strings"
 
-	"github.com/the-maldridge/terrastate/internal/auth"
+	"github.com/hashicorp/go-hclog"
+
+	"github.com/the-maldridge/terrastate/internal/web"
+	"github.com/the-maldridge/terrastate/internal/web/auth"
 )
 
 var (
-	accountsFile = flag.String("accounts_file", "./accounts.txt", "Accounts file")
+	accountsFile string
 )
 
 func init() {
-	auth.Register("file", New)
+	auth.RegisterCallback(cb)
+
+	accountsFile = os.Getenv("TS_USER_FILE")
+	if accountsFile == "" {
+		accountsFile = "accounts.txt"
+	}
+}
+
+func cb() {
+	auth.RegisterFactory("file", New)
 }
 
 // New can be used to get a new instance of this backend
-func New() (auth.Service, error) {
+func New(l hclog.Logger) (web.Auth, error) {
 	accounts, err := loadAccounts()
 	if err != nil {
 		return nil, err
@@ -25,15 +38,18 @@ func New() (auth.Service, error) {
 
 	x := fileBackend{
 		accounts: accounts,
+		l:        l.Named("file"),
 	}
 	return &x, nil
 }
 
 type fileBackend struct {
 	accounts map[string]string
+
+	l hclog.Logger
 }
 
-func (x *fileBackend) AuthUser(user, pass string) error {
+func (x *fileBackend) AuthUser(ctx context.Context, user, pass, project string) error {
 	key, ok := x.accounts[user]
 	if !ok || key != pass {
 		return auth.ErrUnauthenticated
@@ -41,8 +57,12 @@ func (x *fileBackend) AuthUser(user, pass string) error {
 	return nil
 }
 
+func (x *fileBackend) SetLogger(l hclog.Logger) {
+	x.l = l
+}
+
 func loadAccounts() (map[string]string, error) {
-	data, err := ioutil.ReadFile(*accountsFile)
+	data, err := ioutil.ReadFile(accountsFile)
 	if err != nil {
 		return nil, err
 	}

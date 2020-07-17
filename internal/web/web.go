@@ -1,12 +1,14 @@
 package web
 
 import (
+	"context"
 	"io/ioutil"
 	"net/http"
 	"path"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/labstack/echo"
+	"github.com/labstack/echo/middleware"
 )
 
 // A Store is an abstraction to a persistent storage system that
@@ -22,6 +24,11 @@ type Store interface {
 	Close() error
 }
 
+// An Auth component is able to validate a username and password and returns a nil error only if the 
+type Auth interface {
+	AuthUser(context.Context, string, string, string) error
+}
+
 // Server is an abstraction over all methods needed to operate the
 // state server.  It includes the required Store and binds all HTTP
 // methods to the appropriate routes.
@@ -35,16 +42,27 @@ type Server struct {
 // New returns an initialized server, but not one that is prepared to
 // serve.  The embedded echo.Echo instance's Serve method must still
 // be called.
-func New(kv Store) *Server {
+func New(kv Store, auth Auth) *Server {
 	e := echo.New()
 	e.Logger.SetLevel(99)
 	x := new(Server)
 	x.Echo = e
 	x.store = kv
 
-	x.GET("/state/:project/:id", x.getState)
-	x.POST("/state/:project/:id", x.putState)
-	x.DELETE("/state/:project/:id", x.delState)
+	sg := x.Group("/state")
+
+	sg.Use(middleware.BasicAuth(func(u, p string, c echo.Context) (bool, error) {
+		proj := c.Param("project")
+		if err := auth.AuthUser(c.Request().Context(), u, p, proj); err != nil {
+			return false, err
+		}
+		c.Set("user", u)
+		return true, nil
+	}))
+
+	sg.GET("/:project/:id", x.getState)
+	sg.POST("/:project/:id", x.putState)
+	sg.DELETE("/:project/:id", x.delState)
 
 	return x
 }
@@ -65,6 +83,7 @@ func (s *Server) getState(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
+	s.l.Info("State Provided", "project", proj, "id", id, "user", c.Get("user"))
 	return c.Blob(http.StatusOK, "text", state)
 }
 
@@ -83,6 +102,7 @@ func (s *Server) putState(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
+	s.l.Info("State Updated", "project", proj, "id", id, "user", c.Get("user"))
 	return c.NoContent(http.StatusOK)
 }
 
@@ -95,5 +115,6 @@ func (s *Server) delState(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
+	s.l.Info("State Purged", "project", proj, "id", id, "user", c.Get("user"))
 	return c.NoContent(http.StatusOK)
 }
