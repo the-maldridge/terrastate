@@ -24,7 +24,7 @@ type Store interface {
 	Close() error
 }
 
-// An Auth component is able to validate a username and password and returns a nil error only if the 
+// An Auth component is able to validate a username and password and returns a nil error only if the
 type Auth interface {
 	AuthUser(context.Context, string, string, string) error
 }
@@ -63,6 +63,8 @@ func New(kv Store, auth Auth) *Server {
 	sg.GET("/:project/:id", x.getState)
 	sg.POST("/:project/:id", x.putState)
 	sg.DELETE("/:project/:id", x.delState)
+	sg.PUT("/:project/:id/lock", x.lockState)
+	sg.DELETE("/:project/:id/lock", x.unlockState)
 
 	return x
 }
@@ -84,7 +86,7 @@ func (s *Server) getState(c echo.Context) error {
 	}
 
 	s.l.Info("State Provided", "project", proj, "id", id, "user", c.Get("user"))
-	return c.Blob(http.StatusOK, "text", state)
+	return c.Blob(http.StatusOK, "application/json", state)
 }
 
 func (s *Server) putState(c echo.Context) error {
@@ -112,6 +114,45 @@ func (s *Server) delState(c echo.Context) error {
 
 	if err := s.store.Del([]byte(path.Join(proj, id))); err != nil {
 		s.l.Error("Error purging state", "project", proj, "id", id, "error", err)
+		return c.JSON(http.StatusInternalServerError, err)
+	}
+
+	s.l.Info("State Purged", "project", proj, "id", id, "user", c.Get("user"))
+	return c.NoContent(http.StatusOK)
+}
+
+func (s *Server) lockState(c echo.Context) error {
+	proj := c.Param("project")
+	id := c.Param("id")
+
+	// In the case of a nil error it must be assumed that a lock
+	// is being held.
+	if l, err := s.store.Get([]byte(path.Join(proj, id, "lock"))); err == nil {
+		s.l.Warn("Could not aquire lock, already held", "project", proj, "id", id)
+		return c.Blob(http.StatusConflict, "application/json", l)
+	}
+
+	body, err := ioutil.ReadAll(c.Request().Body)
+	if err != nil {
+		s.l.Error("Error decoding request", "project", proj, "id", id, "error", err)
+		return c.JSON(http.StatusInternalServerError, err)
+	}
+
+	if err := s.store.Put([]byte(path.Join(proj, id, "lock")), body); err != nil {
+		s.l.Error("Error putting state", "project", proj, "id", id, "error", err)
+		return c.JSON(http.StatusInternalServerError, err)
+	}
+
+	s.l.Info("State Updated", "project", proj, "id", id, "user", c.Get("user"))
+	return c.NoContent(http.StatusOK)
+}
+
+func (s *Server) unlockState(c echo.Context) error {
+	proj := c.Param("project")
+	id := c.Param("id")
+
+	if err := s.store.Del([]byte(path.Join(proj, id, "lock"))); err != nil {
+		s.l.Error("Error releasing lock", "project", proj, "id", id, "error", err)
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
