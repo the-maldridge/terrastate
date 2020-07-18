@@ -77,7 +77,9 @@ func (b *netAuthBackend) AuthUser(ctx context.Context, user, pass, project strin
 	}
 
 	for _, g := range groups {
+		b.l.Trace("Checking group for user", "user", user, "want", b.prefix+project, "have", g.GetName())
 		if g.GetName() == b.prefix+project {
+			b.l.Debug("User authenticated", "project", project, "user", user)
 			return nil
 		}
 	}
