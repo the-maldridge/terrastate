@@ -45,7 +45,7 @@ func New(l hclog.Logger) (web.Auth, error) {
 
 	prefix := os.Getenv("TS_AUTH_PREFIX")
 	if prefix == "" {
-		prefix = "terrastate"
+		prefix = "terrastate-"
 	}
 
 	x := netAuthBackend{
