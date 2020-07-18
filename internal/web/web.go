@@ -127,7 +127,7 @@ func (s *Server) lockState(c echo.Context) error {
 
 	// In the case of a nil error it must be assumed that a lock
 	// is being held.
-	if l, err := s.store.Get([]byte(path.Join(proj, id, "lock"))); err == nil {
+	if l, err := s.store.Get([]byte(path.Join(proj, id, "lock"))); err == nil && l != nil {
 		s.l.Warn("Could not aquire lock, already held", "project", proj, "id", id)
 		return c.Blob(http.StatusConflict, "application/json", l)
 	}
@@ -143,7 +143,7 @@ func (s *Server) lockState(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
-	s.l.Info("State Updated", "project", proj, "id", id, "user", c.Get("user"))
+	s.l.Info("State Locked", "project", proj, "id", id, "user", c.Get("user"))
 	return c.NoContent(http.StatusOK)
 }
 
@@ -156,6 +156,6 @@ func (s *Server) unlockState(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
-	s.l.Info("State Purged", "project", proj, "id", id, "user", c.Get("user"))
+	s.l.Info("State Unlocked", "project", proj, "id", id, "user", c.Get("user"))
 	return c.NoContent(http.StatusOK)
 }
