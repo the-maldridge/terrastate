@@ -36,7 +36,12 @@ func newBCStore(l hclog.Logger) (web.Store, error) {
 		return nil, errors.New("required variable unset")
 	}
 
-	b, err := bitcask.Open(p)
+	opts := []bitcask.Option{
+		bitcask.WithMaxKeySize(1024),
+		bitcask.WithMaxValueSize(1024 * 1000 * 5), // 5MiB
+		bitcask.WithSync(true),
+	}
+	b, err := bitcask.Open(p, opts...)
 	if err != nil {
 		l.Error("Error initializing bitcask", "error", err)
 		return nil, err
