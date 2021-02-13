@@ -49,6 +49,8 @@ func New(kv Store, auth Auth) *Server {
 	x.Echo = e
 	x.store = kv
 
+	x.GET("/alive", func(c echo.Context) error { return c.String(http.StatusOK, "OK") })
+
 	sg := x.Group("/state")
 
 	sg.Use(middleware.BasicAuth(func(u, p string, c echo.Context) (bool, error) {
