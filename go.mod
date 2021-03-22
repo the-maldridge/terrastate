@@ -8,7 +8,6 @@ require (
 	github.com/labstack/gommon v0.3.0 // indirect
 	github.com/netauth/netauth v0.4.1
 	github.com/prologic/bitcask v0.3.5
-	github.com/radovskyb/watcher v1.0.6 // indirect
 	github.com/spf13/viper v1.4.0
 	google.golang.org/grpc v1.36.0
 )
