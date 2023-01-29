@@ -79,10 +79,11 @@ func (b *netAuthBackend) AuthUser(ctx context.Context, user, pass, project strin
 	for _, g := range groups {
 		b.l.Trace("Checking group for user", "user", user, "want", b.prefix+project, "have", g.GetName())
 		if g.GetName() == b.prefix+project {
-			b.l.Debug("User authenticated", "project", project, "user", user)
+			b.l.Info("User authenticated", "project", project, "user", user)
 			return nil
 		}
 	}
+	b.l.Warn("User authentication failed", "project", project, "user", user, "groups", groups)
 
 	return auth.ErrUnauthenticated
 }
