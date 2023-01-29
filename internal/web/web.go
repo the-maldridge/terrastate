@@ -22,6 +22,7 @@ type Store interface {
 	Del([]byte) error
 
 	Close() error
+	Sync() error
 }
 
 // An Auth component is able to validate a username and password and returns a nil error only if the
@@ -103,6 +104,11 @@ func (s *Server) putState(c echo.Context) error {
 
 	if err := s.store.Put([]byte(path.Join(proj, id)), body); err != nil {
 		s.l.Error("Error putting state", "project", proj, "id", id, "error", err)
+		return c.JSON(http.StatusInternalServerError, err)
+	}
+
+	if err := s.store.Sync(); err != nil {
+		s.l.Error("Error flushing state buffers", "project", proj, "id", id, "error", err)
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 

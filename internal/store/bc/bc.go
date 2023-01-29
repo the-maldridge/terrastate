@@ -74,3 +74,7 @@ func (b *bcStore) Del(k []byte) error {
 func (b *bcStore) Close() error {
 	return b.s.Close()
 }
+
+func (b *bcStore) Sync() error {
+	return b.s.Sync()
+}
