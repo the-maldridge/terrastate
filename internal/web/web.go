@@ -2,14 +2,21 @@ package web
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"path"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/hashicorp/go-hclog"
-	"github.com/labstack/echo"
-	"github.com/labstack/echo/middleware"
 )
+
+func init() {
+	chi.RegisterMethod("LOCK")
+	chi.RegisterMethod("UNLOCK")
+}
 
 // A Store is an abstraction to a persistent storage system that
 // terrastate will use to durably store the state data it is entrusted
@@ -30,46 +37,74 @@ type Auth interface {
 	AuthUser(context.Context, string, string, string) error
 }
 
+// strong type key for context map
+type ctxUser struct{}
+
 // Server is an abstraction over all methods needed to operate the
 // state server.  It includes the required Store and binds all HTTP
 // methods to the appropriate routes.
 type Server struct {
-	*echo.Echo
-
 	store Store
 	l     hclog.Logger
+
+	r chi.Router
+	n *http.Server
 }
 
 // New returns an initialized server, but not one that is prepared to
 // serve.  The embedded echo.Echo instance's Serve method must still
 // be called.
 func New(kv Store, auth Auth) *Server {
-	e := echo.New()
-	e.Logger.SetLevel(99)
 	x := new(Server)
-	x.Echo = e
 	x.store = kv
+	x.r = chi.NewRouter()
+	x.n = &http.Server{}
 
-	x.GET("/alive", func(c echo.Context) error { return c.String(http.StatusOK, "OK") })
+	x.r.Use(middleware.Heartbeat("/healthz"))
 
-	sg := x.Group("/state")
+	x.r.Route("/state", func(r chi.Router) {
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				proj := chi.URLParam(r, "project")
+				u, p, ok := r.BasicAuth()
+				if !ok {
+					x.l.Debug("Request without basic auth", "project", proj)
+					w.WriteHeader(http.StatusUnauthorized)
+					fmt.Fprint(w, "HTTP Basic Authentication Required")
+					return
+				}
 
-	sg.Use(middleware.BasicAuth(func(u, p string, c echo.Context) (bool, error) {
-		proj := c.Param("project")
-		if err := auth.AuthUser(c.Request().Context(), u, p, proj); err != nil {
-			return false, err
-		}
-		c.Set("user", u)
-		return true, nil
-	}))
+				if err := auth.AuthUser(r.Context(), u, p, proj); err != nil {
+					w.WriteHeader(http.StatusUnauthorized)
+					fmt.Fprint(w, "HTTP Basic Authentication Required")
+					return
+				}
 
-	sg.GET("/:project/:id", x.getState)
-	sg.POST("/:project/:id", x.putState)
-	sg.DELETE("/:project/:id", x.delState)
-	sg.PUT("/:project/:id/lock", x.lockState)
-	sg.DELETE("/:project/:id/lock", x.unlockState)
+				next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxUser{}, u)))
+			})
+		})
 
+		r.Get("/{project}/{id}", x.getState)
+		r.Post("/{project}/{id}", x.putState)
+		r.Delete("/{project}/{id}", x.delState)
+		r.Method("LOCK", "/{project}/{id}", http.HandlerFunc(x.lockState))
+		r.Method("UNLOCK", "/{project}/{id}", http.HandlerFunc(x.unlockState))
+	})
 	return x
+}
+
+// Serve binds and serves http on the bound socket.  An error will be
+// returned if the server cannot initialize.
+func (s *Server) Serve(bind string) error {
+	s.l.Info("HTTP is starting")
+	s.n.Addr = bind
+	s.n.Handler = s.r
+	return s.n.ListenAndServe()
+}
+
+// Shutdown gracefully shuts down the server.
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.n.Shutdown(ctx)
 }
 
 // SetLogger sets the logger for the top level of the web system.
@@ -77,93 +112,118 @@ func (s *Server) SetLogger(l hclog.Logger) {
 	s.l = l
 }
 
+func (s *Server) jsonError(w http.ResponseWriter, r *http.Request, rc int, err error) {
+	w.WriteHeader(rc)
+	enc := json.NewEncoder(w)
+	err = enc.Encode(struct {
+		Error error
+	}{
+		Error: err,
+	})
+	if err != nil {
+		fmt.Fprintf(w, "Error writing json error response: %v", err)
+	}
+}
+
 // getState fetches state for a given id and returns it to the caller.
-func (s *Server) getState(c echo.Context) error {
-	proj := c.Param("project")
-	id := c.Param("id")
+func (s *Server) getState(w http.ResponseWriter, r *http.Request) {
+	proj := chi.URLParam(r, "project")
+	id := chi.URLParam(r, "id")
 
 	state, err := s.store.Get([]byte(path.Join(proj, id)))
 	if err != nil {
 		s.l.Error("Error retrieving state", "project", proj, "id", id, "error", err)
-		return c.JSON(http.StatusInternalServerError, err)
+		s.jsonError(w, r, http.StatusInternalServerError, err)
+		return
 	}
 
-	s.l.Info("State Provided", "project", proj, "id", id, "user", c.Get("user"))
-	return c.Blob(http.StatusOK, "application/json", state)
+	s.l.Info("State Provided", "project", proj, "id", id, "user", r.Context().Value(ctxUser{}))
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(state)
 }
 
-func (s *Server) putState(c echo.Context) error {
-	proj := c.Param("project")
-	id := c.Param("id")
+func (s *Server) putState(w http.ResponseWriter, r *http.Request) {
+	proj := chi.URLParam(r, "project")
+	id := chi.URLParam(r, "id")
 
-	body, err := ioutil.ReadAll(c.Request().Body)
+	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		s.l.Error("Error decoding request", "project", proj, "id", id, "error", err)
-		return c.JSON(http.StatusInternalServerError, err)
+		s.jsonError(w, r, http.StatusInternalServerError, err)
+		return
 	}
 
 	if err := s.store.Put([]byte(path.Join(proj, id)), body); err != nil {
 		s.l.Error("Error putting state", "project", proj, "id", id, "error", err)
-		return c.JSON(http.StatusInternalServerError, err)
+		s.jsonError(w, r, http.StatusInternalServerError, err)
+		return
 	}
 
 	if err := s.store.Sync(); err != nil {
 		s.l.Error("Error flushing state buffers", "project", proj, "id", id, "error", err)
-		return c.JSON(http.StatusInternalServerError, err)
+		s.jsonError(w, r, http.StatusInternalServerError, err)
+		return
 	}
 
-	s.l.Info("State Updated", "project", proj, "id", id, "user", c.Get("user"))
-	return c.NoContent(http.StatusOK)
+	s.l.Info("State Updated", "project", proj, "id", id, "user", r.Context().Value(ctxUser{}))
+	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) delState(c echo.Context) error {
-	proj := c.Param("project")
-	id := c.Param("id")
+func (s *Server) delState(w http.ResponseWriter, r *http.Request) {
+	proj := chi.URLParam(r, "project")
+	id := chi.URLParam(r, "id")
 
 	if err := s.store.Del([]byte(path.Join(proj, id))); err != nil {
 		s.l.Error("Error purging state", "project", proj, "id", id, "error", err)
-		return c.JSON(http.StatusInternalServerError, err)
+		s.jsonError(w, r, http.StatusInternalServerError, err)
+		return
 	}
 
-	s.l.Info("State Purged", "project", proj, "id", id, "user", c.Get("user"))
-	return c.NoContent(http.StatusOK)
+	s.l.Info("State Purged", "project", proj, "id", id, "user", r.Context().Value(ctxUser{}))
+	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) lockState(c echo.Context) error {
-	proj := c.Param("project")
-	id := c.Param("id")
+func (s *Server) lockState(w http.ResponseWriter, r *http.Request) {
+	proj := chi.URLParam(r, "project")
+	id := chi.URLParam(r, "id")
 
 	// In the case of a nil error it must be assumed that a lock
 	// is being held.
 	if l, err := s.store.Get([]byte(path.Join(proj, id, "lock"))); err == nil && l != nil {
 		s.l.Warn("Could not aquire lock, already held", "project", proj, "id", id)
-		return c.Blob(http.StatusConflict, "application/json", l)
+		w.Header().Add("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		w.Write(l)
 	}
 
-	body, err := ioutil.ReadAll(c.Request().Body)
+	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		s.l.Error("Error decoding request", "project", proj, "id", id, "error", err)
-		return c.JSON(http.StatusInternalServerError, err)
+		s.jsonError(w, r, http.StatusInternalServerError, err)
+		return
 	}
 
 	if err := s.store.Put([]byte(path.Join(proj, id, "lock")), body); err != nil {
 		s.l.Error("Error putting state", "project", proj, "id", id, "error", err)
-		return c.JSON(http.StatusInternalServerError, err)
+		s.jsonError(w, r, http.StatusInternalServerError, err)
+		return
 	}
 
-	s.l.Info("State Locked", "project", proj, "id", id, "user", c.Get("user"))
-	return c.NoContent(http.StatusOK)
+	s.l.Info("State Locked", "project", proj, "id", id, "user", r.Context().Value(ctxUser{}))
+	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) unlockState(c echo.Context) error {
-	proj := c.Param("project")
-	id := c.Param("id")
+func (s *Server) unlockState(w http.ResponseWriter, r *http.Request) {
+	proj := chi.URLParam(r, "project")
+	id := chi.URLParam(r, "id")
 
 	if err := s.store.Del([]byte(path.Join(proj, id, "lock"))); err != nil {
 		s.l.Error("Error releasing lock", "project", proj, "id", id, "error", err)
-		return c.JSON(http.StatusInternalServerError, err)
+		s.jsonError(w, r, http.StatusInternalServerError, err)
+		return
 	}
 
-	s.l.Info("State Unlocked", "project", proj, "id", id, "user", c.Get("user"))
-	return c.NoContent(http.StatusOK)
+	s.l.Info("State Unlocked", "project", proj, "id", id, "user", r.Context().Value(ctxUser{}))
+	w.WriteHeader(http.StatusNoContent)
 }

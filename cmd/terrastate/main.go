@@ -63,7 +63,7 @@ func main() {
 	}
 
 	go func() {
-		w.Start(bind)
+		w.Serve(bind)
 	}()
 
 	quit := make(chan os.Signal, 1)
