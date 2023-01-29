@@ -49,16 +49,23 @@ type Server struct {
 
 	r chi.Router
 	n *http.Server
+	a Auth
 }
 
 // New returns an initialized server, but not one that is prepared to
 // serve.  The embedded echo.Echo instance's Serve method must still
 // be called.
-func New(kv Store, auth Auth) *Server {
+func New(opts ...Option) (*Server, error) {
 	x := new(Server)
-	x.store = kv
 	x.r = chi.NewRouter()
 	x.n = &http.Server{}
+	x.l = hclog.NewNullLogger()
+
+	for _, o := range opts {
+		if err := o(x); err != nil {
+			return nil, err
+		}
+	}
 
 	x.r.Use(middleware.Heartbeat("/healthz"))
 
@@ -74,7 +81,7 @@ func New(kv Store, auth Auth) *Server {
 					return
 				}
 
-				if err := auth.AuthUser(r.Context(), u, p, proj); err != nil {
+				if err := x.a.AuthUser(r.Context(), u, p, proj); err != nil {
 					w.WriteHeader(http.StatusUnauthorized)
 					fmt.Fprint(w, "HTTP Basic Authentication Required")
 					return
@@ -90,7 +97,7 @@ func New(kv Store, auth Auth) *Server {
 		r.Method("LOCK", "/{project}/{id}", http.HandlerFunc(x.lockState))
 		r.Method("UNLOCK", "/{project}/{id}", http.HandlerFunc(x.unlockState))
 	})
-	return x
+	return x, nil
 }
 
 // Serve binds and serves http on the bound socket.  An error will be
@@ -105,11 +112,6 @@ func (s *Server) Serve(bind string) error {
 // Shutdown gracefully shuts down the server.
 func (s *Server) Shutdown(ctx context.Context) error {
 	return s.n.Shutdown(ctx)
-}
-
-// SetLogger sets the logger for the top level of the web system.
-func (s *Server) SetLogger(l hclog.Logger) {
-	s.l = l
 }
 
 func (s *Server) jsonError(w http.ResponseWriter, r *http.Request, rc int, err error) {

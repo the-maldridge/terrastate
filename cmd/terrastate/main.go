@@ -54,8 +54,14 @@ func main() {
 		os.Exit(2)
 	}
 
-	w := web.New(s, a)
-	w.SetLogger(appLogger.Named("web"))
+	w, err := web.New(
+		web.WithLogger(appLogger),
+		web.WithStore(s),
+		web.WithAuth(a),
+	)
+	if err != nil {
+		appLogger.Error("Error initializing webserver", "error", err)
+	}
 
 	bind := os.Getenv("TS_BIND")
 	if bind == "" {
