@@ -182,6 +182,12 @@ func (s *Server) delState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := s.store.Sync(); err != nil {
+		s.l.Error("Error flushing state buffers", "project", proj, "id", id, "error", err)
+		s.jsonError(w, r, http.StatusInternalServerError, err)
+		return
+	}
+
 	s.l.Info("State Purged", "project", proj, "id", id, "user", r.Context().Value(ctxUser{}))
 	w.WriteHeader(http.StatusOK)
 }
@@ -212,6 +218,12 @@ func (s *Server) lockState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := s.store.Sync(); err != nil {
+		s.l.Error("Error flushing state buffers", "project", proj, "id", id, "error", err)
+		s.jsonError(w, r, http.StatusInternalServerError, err)
+		return
+	}
+
 	s.l.Info("State Locked", "project", proj, "id", id, "user", r.Context().Value(ctxUser{}))
 	w.WriteHeader(http.StatusOK)
 }
@@ -222,6 +234,12 @@ func (s *Server) unlockState(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.store.Del([]byte(path.Join(proj, id, "lock"))); err != nil {
 		s.l.Error("Error releasing lock", "project", proj, "id", id, "error", err)
+		s.jsonError(w, r, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := s.store.Sync(); err != nil {
+		s.l.Error("Error flushing state buffers", "project", proj, "id", id, "error", err)
 		s.jsonError(w, r, http.StatusInternalServerError, err)
 		return
 	}
