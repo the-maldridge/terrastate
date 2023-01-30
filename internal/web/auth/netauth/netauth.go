@@ -47,6 +47,7 @@ func New(l hclog.Logger) (web.Auth, error) {
 	if prefix == "" {
 		prefix = "terrastate-"
 	}
+	l.Info("Expecting group prefix", "prefix", prefix)
 
 	x := netAuthBackend{
 		nacl:   c,
@@ -83,7 +84,7 @@ func (b *netAuthBackend) AuthUser(ctx context.Context, user, pass, project strin
 			return nil
 		}
 	}
-	b.l.Warn("User authentication failed", "project", project, "user", user, "groups", groups)
+	b.l.Warn("User authentication failed", "project", project, "user", user)
 
 	return auth.ErrUnauthenticated
 }

@@ -69,7 +69,7 @@ func New(opts ...Option) (*Server, error) {
 
 	x.r.Use(middleware.Heartbeat("/healthz"))
 
-	x.r.Route("/state", func(r chi.Router) {
+	x.r.Route("/state/{project}", func(r chi.Router) {
 		r.Use(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				proj := chi.URLParam(r, "project")
@@ -91,11 +91,11 @@ func New(opts ...Option) (*Server, error) {
 			})
 		})
 
-		r.Get("/{project}/{id}", x.getState)
-		r.Post("/{project}/{id}", x.putState)
-		r.Delete("/{project}/{id}", x.delState)
-		r.Method("LOCK", "/{project}/{id}", http.HandlerFunc(x.lockState))
-		r.Method("UNLOCK", "/{project}/{id}", http.HandlerFunc(x.unlockState))
+		r.Get("/{id}", x.getState)
+		r.Post("/{id}", x.putState)
+		r.Delete("/{id}", x.delState)
+		r.Method("LOCK", "/{id}", http.HandlerFunc(x.lockState))
+		r.Method("UNLOCK", "/{id}", http.HandlerFunc(x.unlockState))
 	})
 	return x, nil
 }
