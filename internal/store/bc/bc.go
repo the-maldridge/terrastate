@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/prologic/bitcask"
+	"git.mills.io/prologic/bitcask"
 
 	"github.com/the-maldridge/terrastate/internal/store"
 	"github.com/the-maldridge/terrastate/internal/web"
