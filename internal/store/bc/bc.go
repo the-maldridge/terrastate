@@ -4,8 +4,8 @@ import (
 	"errors"
 	"os"
 
-	"github.com/hashicorp/go-hclog"
 	"git.mills.io/prologic/bitcask"
+	"github.com/hashicorp/go-hclog"
 
 	"github.com/the-maldridge/terrastate/internal/store"
 	"github.com/the-maldridge/terrastate/internal/web"

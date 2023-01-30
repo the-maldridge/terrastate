@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -73,7 +74,7 @@ func main() {
 	}()
 
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	appLogger.Info("Shutting down...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
