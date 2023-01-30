@@ -169,7 +169,7 @@ func (s *Server) putState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.l.Info("State Updated", "project", proj, "id", id, "user", r.Context().Value(ctxUser{}))
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) delState(w http.ResponseWriter, r *http.Request) {
@@ -183,7 +183,7 @@ func (s *Server) delState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.l.Info("State Purged", "project", proj, "id", id, "user", r.Context().Value(ctxUser{}))
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) lockState(w http.ResponseWriter, r *http.Request) {
@@ -195,7 +195,7 @@ func (s *Server) lockState(w http.ResponseWriter, r *http.Request) {
 	if l, err := s.store.Get([]byte(path.Join(proj, id, "lock"))); err == nil && l != nil {
 		s.l.Warn("Could not aquire lock, already held", "project", proj, "id", id)
 		w.Header().Add("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
+		w.WriteHeader(http.StatusLocked)
 		w.Write(l)
 	}
 
@@ -213,7 +213,7 @@ func (s *Server) lockState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.l.Info("State Locked", "project", proj, "id", id, "user", r.Context().Value(ctxUser{}))
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) unlockState(w http.ResponseWriter, r *http.Request) {
@@ -227,5 +227,5 @@ func (s *Server) unlockState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.l.Info("State Unlocked", "project", proj, "id", id, "user", r.Context().Value(ctxUser{}))
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
