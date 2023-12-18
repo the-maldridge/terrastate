@@ -49,7 +49,7 @@ type Server struct {
 
 	r chi.Router
 	n *http.Server
-	a Auth
+	a []Auth
 }
 
 // New returns an initialized server, but not one that is prepared to
@@ -62,9 +62,7 @@ func New(opts ...Option) (*Server, error) {
 	x.l = hclog.NewNullLogger()
 
 	for _, o := range opts {
-		if err := o(x); err != nil {
-			return nil, err
-		}
+		o(x)
 	}
 
 	x.r.Use(middleware.Heartbeat("/healthz"))
@@ -81,7 +79,11 @@ func New(opts ...Option) (*Server, error) {
 					return
 				}
 
-				if err := x.a.AuthUser(r.Context(), u, p, proj); err != nil {
+				authenticated := false
+				for _, a := range x.a {
+					authenticated = authenticated || a.AuthUser(r.Context(), u, p, proj) != nil
+				}
+				if !authenticated {
 					w.WriteHeader(http.StatusUnauthorized)
 					fmt.Fprint(w, "HTTP Basic Authentication Required")
 					return

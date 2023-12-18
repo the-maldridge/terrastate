@@ -5,28 +5,25 @@ import (
 )
 
 // Option functions configure the webserver with various values.
-type Option func(s *Server) error
+type Option func(s *Server)
 
 // WithLogger sets the logger for the server.
 func WithLogger(l hclog.Logger) Option {
-	return func(s *Server) error {
+	return func(s *Server) {
 		s.l = l.Named("web")
-		return nil
 	}
 }
 
 // WithStore sets up the storage backend.
 func WithStore(st Store) Option {
-	return func(s *Server) error {
+	return func(s *Server) {
 		s.store = st
-		return nil
 	}
 }
 
 // WithAuth configures the authentication backend.
 func WithAuth(auth Auth) Option {
-	return func(s *Server) error {
-		s.a = auth
-		return nil
+	return func(s *Server) {
+		s.a = append(s.a, auth)
 	}
 }
