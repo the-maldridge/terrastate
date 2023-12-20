@@ -16,6 +16,7 @@ import (
 	"github.com/the-maldridge/terrastate/internal/web/auth"
 
 	_ "github.com/the-maldridge/terrastate/internal/web/auth/file"
+	_ "github.com/the-maldridge/terrastate/internal/web/auth/htpasswd"
 	_ "github.com/the-maldridge/terrastate/internal/web/auth/ldap"
 	_ "github.com/the-maldridge/terrastate/internal/web/auth/netauth"
 )
