@@ -79,17 +79,15 @@ func New(opts ...Option) (*Server, error) {
 					return
 				}
 
-				authenticated := false
 				for _, a := range x.a {
-					authenticated = authenticated || a.AuthUser(r.Context(), u, p, proj) != nil
-				}
-				if !authenticated {
-					w.WriteHeader(http.StatusUnauthorized)
-					fmt.Fprint(w, "HTTP Basic Authentication Required")
-					return
+					if a.AuthUser(r.Context(), u, p, proj) == nil {
+						next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxUser{}, u)))
+						return
+					}
 				}
 
-				next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxUser{}, u)))
+				w.WriteHeader(http.StatusUnauthorized)
+				fmt.Fprint(w, "HTTP Basic Authentication Required")
 			})
 		})
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -48,20 +49,23 @@ func main() {
 	}
 
 	ai := os.Getenv("TS_AUTH")
-	if ai == "" {
-		ai = "file"
+	authsList := strings.Split(ai, ":")
+	if len(authsList) == 0 {
+		authsList = []string{"file"}
 	}
-	a, err := auth.Initialize(ai)
-	if err != nil {
-		appLogger.Error("Could not initialize auth", "error", err)
-		os.Exit(2)
+	auths := []web.Option{}
+	for _, mech := range authsList {
+		a, err := auth.Initialize(mech)
+		if err != nil {
+			appLogger.Error("Could not initialize auth", "error", err)
+			os.Exit(2)
+		}
+		auths = append(auths, web.WithAuth(a))
 	}
 
-	w, err := web.New(
-		web.WithLogger(appLogger),
-		web.WithStore(s),
-		web.WithAuth(a),
-	)
+	webOpts := append(auths, web.WithLogger(appLogger), web.WithStore(s))
+
+	w, err := web.New(webOpts...)
 	if err != nil {
 		appLogger.Error("Error initializing webserver", "error", err)
 	}
