@@ -21,6 +21,8 @@ type htpasswdBackend struct {
 
 	f *htpasswd.File
 	g *htpasswd.HTGroup
+
+	prefix string
 }
 
 func init() {
@@ -43,6 +45,13 @@ func cb() {
 
 // New can be used to get a new instance of this backend
 func New(l hclog.Logger) (web.Auth, error) {
+	l = l.Named("htpasswd")
+	prefix := os.Getenv("TS_AUTH_PREFIX")
+	if prefix == "" {
+		prefix = "terrastate-"
+	}
+	l.Info("Expecting group prefix", "prefix", prefix)
+
 	f, err := htpasswd.New(htpasswdFile, htpasswd.DefaultSystems, nil)
 	if err != nil {
 		return nil, err
@@ -54,9 +63,10 @@ func New(l hclog.Logger) (web.Auth, error) {
 	}
 
 	x := htpasswdBackend{
-		l: l.Named("htpasswd"),
-		f: f,
-		g: g,
+		l:      l,
+		f:      f,
+		g:      g,
+		prefix: prefix,
 	}
 
 	x.l.Info("Initialized", "htpasswd", htpasswdFile, "htgroup", htgroupFile)
@@ -64,15 +74,16 @@ func New(l hclog.Logger) (web.Auth, error) {
 }
 func (h *htpasswdBackend) AuthUser(ctx context.Context, user, pass, project string) error {
 	if !h.f.Match(user, pass) {
-		h.l.Debug("User unauthenticated", "user", user, "project", project)
+		h.l.Debug("User unauthenticated", "project", project, "user", user)
 		return auth.ErrUnauthenticated
 	}
 
-	if !h.g.IsUserInGroup(user, project) {
-		h.l.Debug("User bad group", "user", user, "project", project)
+	if !h.g.IsUserInGroup(user, h.prefix+project) {
+		h.l.Debug("User bad group", "project", project, "user", user)
 		return auth.ErrUnauthenticated
 	}
 
+	h.l.Info("User authenticated", "project", project, "user", user)
 	return nil
 }
 
