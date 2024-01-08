@@ -58,14 +58,18 @@ func New(l hclog.Logger) (web.Auth, error) {
 		f: f,
 		g: g,
 	}
+
+	x.l.Info("Initialized", "htpasswd", htpasswdFile, "htgroup", htgroupFile)
 	return &x, nil
 }
 func (h *htpasswdBackend) AuthUser(ctx context.Context, user, pass, project string) error {
 	if !h.f.Match(user, pass) {
+		h.l.Debug("User unauthenticated", "user", user, "project", project)
 		return auth.ErrUnauthenticated
 	}
 
 	if !h.g.IsUserInGroup(user, project) {
+		h.l.Debug("User bad group", "user", user, "project", project)
 		return auth.ErrUnauthenticated
 	}
 
