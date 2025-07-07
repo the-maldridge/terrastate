@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/hashicorp/go-hclog"
+	"github.com/the-maldridge/authware"
 )
 
 func init() {
@@ -32,14 +33,6 @@ type Store interface {
 	Sync() error
 }
 
-// An Auth component is able to validate a username and password and returns a nil error only if the
-type Auth interface {
-	AuthUser(context.Context, string, string, string) error
-}
-
-// strong type key for context map
-type ctxUser struct{}
-
 // Server is an abstraction over all methods needed to operate the
 // state server.  It includes the required Store and binds all HTTP
 // methods to the appropriate routes.
@@ -49,8 +42,13 @@ type Server struct {
 
 	r chi.Router
 	n *http.Server
-	a []Auth
+	prefix string
 }
+
+// This is just so we can fish the user out later for logging without
+// needing to do a type assertion to get at the underlying authware
+// user.
+type ctxUser struct{}
 
 // New returns an initialized server, but not one that is prepared to
 // serve.  The embedded echo.Echo instance's Serve method must still
@@ -67,27 +65,32 @@ func New(opts ...Option) (*Server, error) {
 
 	x.r.Use(middleware.Heartbeat("/healthz"))
 
+	basic, err := authware.NewBasicAuth()
+	if err != nil {
+		return nil, err
+	}
+
 	x.r.Route("/state/{project}", func(r chi.Router) {
+		r.Use(basic.Handler)
 		r.Use(func(next http.Handler) http.Handler {
+			// This check validates that the user is in
+			// the right groups to manipulate a given
+			// project.  It is run after the basic auth
+			// handler, which populates the user
+			// information including the groups.
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				proj := chi.URLParam(r, "project")
-				u, p, ok := r.BasicAuth()
-				if !ok {
-					x.l.Debug("Request without basic auth", "project", proj)
-					w.WriteHeader(http.StatusUnauthorized)
-					fmt.Fprint(w, "HTTP Basic Authentication Required")
+				if x.prefix == "" {
+					next.ServeHTTP(w, r)
 					return
 				}
-
-				for _, a := range x.a {
-					if a.AuthUser(r.Context(), u, p, proj) == nil {
-						next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxUser{}, u)))
-						return
-					}
+				project := chi.URLParam(r, "project")
+				user := r.Context().Value(authware.UserKey{}).(authware.User)
+				if _, ok := user.Groups[x.prefix+project]; !ok {
+					w.WriteHeader(http.StatusUnauthorized)
+					fmt.Fprintln(w, "Not authorized for this project")
+					return
 				}
-
-				w.WriteHeader(http.StatusUnauthorized)
-				fmt.Fprint(w, "HTTP Basic Authentication Required")
+				next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxUser{}, user.Identity)))
 			})
 		})
 

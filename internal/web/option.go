@@ -21,9 +21,9 @@ func WithStore(st Store) Option {
 	}
 }
 
-// WithAuth configures the authentication backend.
-func WithAuth(auth Auth) Option {
+// WithAuth configures the group prefix that will be required
+func WithAuthPrefix(prefix string) Option {
 	return func(s *Server) {
-		s.a = append(s.a, auth)
+		s.prefix = prefix
 	}
 }

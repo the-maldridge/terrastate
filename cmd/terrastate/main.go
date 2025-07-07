@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -14,12 +13,11 @@ import (
 	_ "github.com/the-maldridge/terrastate/internal/store/bc"
 
 	"github.com/the-maldridge/terrastate/internal/web"
-	"github.com/the-maldridge/terrastate/internal/web/auth"
 
-	_ "github.com/the-maldridge/terrastate/internal/web/auth/file"
-	_ "github.com/the-maldridge/terrastate/internal/web/auth/htpasswd"
-	_ "github.com/the-maldridge/terrastate/internal/web/auth/ldap"
-	_ "github.com/the-maldridge/terrastate/internal/web/auth/netauth"
+	// Pull in all the auth backends from authware.
+	_ "github.com/the-maldridge/authware/backend/htpasswd"
+	_ "github.com/the-maldridge/authware/backend/ldap"
+	_ "github.com/the-maldridge/authware/backend/netauth"
 )
 
 func main() {
@@ -35,9 +33,6 @@ func main() {
 	store.SetLogger(appLogger.Named("store"))
 	store.DoCallbacks()
 
-	auth.SetLogger(appLogger.Named("web").Named("auth"))
-	auth.DoCallbacks()
-
 	si := os.Getenv("TS_STORE")
 	if si == "" {
 		si = "bitcask"
@@ -48,24 +43,11 @@ func main() {
 		os.Exit(2)
 	}
 
-	ai := os.Getenv("TS_AUTH")
-	authsList := strings.Split(ai, ":")
-	if len(authsList) == 0 {
-		authsList = []string{"file"}
-	}
-	auths := []web.Option{}
-	for _, mech := range authsList {
-		a, err := auth.Initialize(mech)
-		if err != nil {
-			appLogger.Error("Could not initialize auth", "error", err)
-			os.Exit(2)
-		}
-		auths = append(auths, web.WithAuth(a))
-	}
-
-	webOpts := append(auths, web.WithLogger(appLogger), web.WithStore(s))
-
-	w, err := web.New(webOpts...)
+	w, err := web.New(
+		web.WithLogger(appLogger),
+		web.WithStore(s),
+		web.WithAuthPrefix(os.Getenv("TS_AUTH_PREFIX")),
+	)
 	if err != nil {
 		appLogger.Error("Error initializing webserver", "error", err)
 	}
