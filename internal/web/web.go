@@ -65,13 +65,13 @@ func New(opts ...Option) (*Server, error) {
 
 	x.r.Use(middleware.Heartbeat("/healthz"))
 
-	basic, err := authware.NewBasicAuth()
+	basic, err := authware.NewAuth()
 	if err != nil {
 		return nil, err
 	}
 
 	x.r.Route("/state/{project}", func(r chi.Router) {
-		r.Use(basic.Handler)
+		r.Use(basic.BasicHandler)
 		r.Use(func(next http.Handler) http.Handler {
 			// This check validates that the user is in
 			// the right groups to manipulate a given

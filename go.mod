@@ -6,7 +6,7 @@ require (
 	git.mills.io/prologic/bitcask v1.0.2
 	github.com/go-chi/chi/v5 v5.0.11
 	github.com/hashicorp/go-hclog v1.6.2
-	github.com/the-maldridge/authware v0.1.0
+	github.com/the-maldridge/authware v0.1.3
 )
 
 require (
@@ -23,6 +23,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/meehow/securebytes v0.3.1 // indirect
 	github.com/netauth/netauth v0.6.2 // indirect
 	github.com/netauth/protocol v0.0.0-20210918062754-7fee492ffcbd // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
