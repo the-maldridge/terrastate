@@ -6,7 +6,7 @@ require (
 	git.mills.io/prologic/bitcask v1.0.2
 	github.com/go-chi/chi/v5 v5.0.11
 	github.com/hashicorp/go-hclog v1.6.2
-	github.com/the-maldridge/authware v0.1.3
+	github.com/the-maldridge/authware v0.1.6-0.20251009043904-ea40e49f89ff
 )
 
 require (
