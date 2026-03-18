@@ -4,7 +4,7 @@ import (
 	"errors"
 	"os"
 
-	"git.mills.io/prologic/bitcask"
+	"go.mills.io/bitcask/v2"
 	"github.com/hashicorp/go-hclog"
 
 	"github.com/the-maldridge/terrastate/internal/store"
@@ -39,7 +39,7 @@ func newBCStore(l hclog.Logger) (web.Store, error) {
 	opts := []bitcask.Option{
 		bitcask.WithMaxKeySize(1024),
 		bitcask.WithMaxValueSize(1024 * 1000 * 5), // 5MiB
-		bitcask.WithSync(true),
+		bitcask.WithSyncWrites(true),
 	}
 	b, err := bitcask.Open(p, opts...)
 	if err != nil {
